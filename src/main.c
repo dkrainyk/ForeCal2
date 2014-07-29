@@ -67,6 +67,10 @@ static VibePattern vibe_pattern = {
 	.num_segments = ARRAY_LENGTH(vibe_segments),
 };
 
+static int prev_min = -1;
+static int prev_hour = -1;
+static int prev_day = -1;
+
 // App Message Keys for Tuples transferred from Javascript
 enum WeatherKey {
 	WEATHER_STATUS_KEY = 0,
@@ -298,7 +302,8 @@ static void update_weather(void) {
 
 // Handle clock change events
 static void tick_handler(struct tm *tick_time, TimeUnits units_changed) {
-	if ((units_changed & MINUTE_UNIT) != 0)  {
+	if ((units_changed & MINUTE_UNIT) == MINUTE_UNIT && tick_time->tm_min != prev_min) {
+		prev_min = tick_time->tm_min;
 		clock_copy_time_string(current_time, sizeof(current_time));
 		text_layer_set_text(clock_layer, current_time);
 #ifdef DEBUG
@@ -308,7 +313,8 @@ static void tick_handler(struct tm *tick_time, TimeUnits units_changed) {
 			update_sun_layer(tick_time); // Update sun layer every 20min.
 		}
 	}
-	if ((units_changed & HOUR_UNIT) != 0) {
+	if ((units_changed & HOUR_UNIT) == HOUR_UNIT && tick_time->tm_hour != prev_hour) {
+		prev_hour = tick_time->tm_hour;
 #ifdef DEBUG
 		APP_LOG(APP_LOG_LEVEL_DEBUG, "Hour changed");
 #endif
@@ -325,7 +331,8 @@ static void tick_handler(struct tm *tick_time, TimeUnits units_changed) {
 		}
 		update_weather(); // Update the weather every 1 hour
 	}
-	if ((units_changed & DAY_UNIT) != 0) {
+	if ((units_changed & DAY_UNIT) == DAY_UNIT && tick_time->tm_yday != prev_day) {
+		prev_day = tick_time->tm_yday;
 #ifdef DEBUG
 		APP_LOG(APP_LOG_LEVEL_DEBUG, "Day changed");
 #endif
