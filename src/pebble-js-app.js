@@ -274,19 +274,7 @@ function fetchWeather(latitude, longitude) {
 				console.log("Error");
 				Pebble.sendAppMessage({
 					"status": "Err: " + err,
-					"curr_temp": "",
-					"forecast_day": "",
-					"high_temp": "",
-					"low_temp": "",
-					"icon": 0,
-					"condition": "",
-					"daymode": 0,
 					"city": "N/A",
-					"sun_rise_hour": 99,
-					"sun_rise_min": 99,
-					"sun_set_hour": 99,
-					"sun_set_min": 99,
-					"auto_daymode": 1
 				});
 			});
 
@@ -294,38 +282,14 @@ function fetchWeather(latitude, longitude) {
 			// WOEID not found
 			Pebble.sendAppMessage({
 				"status": "Loc. N/A",
-				"curr_temp": "",
-				"forecast_day": "",
-				"high_temp": "",
-				"low_temp": "",
-				"icon": 0,
-				"condition": "",
-				"daymode": 0,
 				"city": "N/A",
-				"sun_rise_hour": 99,
-				"sun_rise_min": 99,
-				"sun_set_hour": 99,
-				"sun_set_min": 99,
-				"auto_daymode": 1
 			});
 		}
 	}, function (err) {
 		console.log("Error");
 		Pebble.sendAppMessage({
 			"status": "Err: " + err,
-			"curr_temp": "",
-			"forecast_day": "",
-			"high_temp": "",
-			"low_temp": "",
-			"icon": 0,
-			"condition": "",
-			"daymode": 0,
 			"city": "N/A",
-			"sun_rise_hour": 99,
-			"sun_rise_min": 99,
-			"sun_set_hour": 99,
-			"sun_set_min": 99,
-			"auto_daymode": 1
 		});
 	});
 }
@@ -340,12 +304,11 @@ function locationError(err) {
 	console.warn('Location error (' + err.code + '): ' + err.message);
 	Pebble.sendAppMessage({
 		"status": "GPS N/A",
-		"city": "GPS N/A"
+		"city": "N/A"
 	});
 }
 
 var locationOptions = { "timeout": 30000, "maximumAge": 600000 };
-
 
 Pebble.addEventListener("ready",
 function (e) {

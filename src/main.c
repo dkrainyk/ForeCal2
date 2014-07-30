@@ -1,4 +1,5 @@
 #include "pebble.h"
+#include "main.h"
 
 // #define DEBUG
 
@@ -44,7 +45,7 @@ static char *weekdays[7] = { "Su", "Mo", "Tu", "We", "Th", "Fr", "Sa" };
 static char current_time[] = "00:00";
 static char current_date[] = "Sun Jan 01";
 
-static char status[50] = "Fetching...";
+static char status[14] = "Fetching...";
 static char city[50] = "";
 static char curr_temp[10] = "";
 static char sun_rise_set[6] = "";
@@ -66,10 +67,6 @@ static VibePattern vibe_pattern = {
 	.durations = vibe_segments,
 	.num_segments = ARRAY_LENGTH(vibe_segments),
 };
-
-static int prev_min = -1;
-static int prev_hour = -1;
-static int prev_day = -1;
 
 // App Message Keys for Tuples transferred from Javascript
 enum WeatherKey {
@@ -113,8 +110,7 @@ static const uint32_t const WEATHER_ICONS[] = {
 	RESOURCE_ID_IMAGE_HURRICANE //18
 };
 
-static TextLayer* init_text_layer(Layer *parent, GRect location, GColor colour, GColor background, const char *res_id, GTextAlignment alignment, GTextOverflowMode overflow)
-{
+static TextLayer* init_text_layer(Layer *parent, GRect location, GColor colour, GColor background, const char *res_id, GTextAlignment alignment, GTextOverflowMode overflow) {
 	TextLayer *layer = text_layer_create(location);
 	text_layer_set_text_color(layer, colour);
 	text_layer_set_background_color(layer, background);
@@ -173,14 +169,14 @@ static void update_sun_layer(struct tm *t) {
 			layer_set_hidden(bitmap_layer_get_layer(sun_layer), false);
 		}
 	}
-	else if (sun_rise_hour == 99 && sun_rise_min == 99 && sun_set_hour == 99 && sun_set_min == 99 && auto_daymode == 99) {
+	else if (sun_rise_hour == 99 && sun_rise_min == 99 && sun_set_hour == 99 && sun_set_min == 99 && auto_daymode == 99 && prev_daytime == 99) {
 		text_layer_set_text(sun_rise_set_layer, "");
 		layer_set_hidden(bitmap_layer_get_layer(sun_layer), true);
 	}
 }
 
-static void process_tuple(Tuple *t)
-{
+// Process incoming message.
+static void process_tuple(Tuple *t) {
 	//Get key
 	int key = t->key;
 
@@ -264,8 +260,8 @@ static void process_tuple(Tuple *t)
 	}
 }
 
-static void in_received_handler(DictionaryIterator *iter, void *context)
-{
+// On sucess input message.
+static void in_received_handler(DictionaryIterator *iter, void *context) {
 	//Get data
 	Tuple *t = dict_read_first(iter);
 	while (t != NULL)
@@ -277,15 +273,32 @@ static void in_received_handler(DictionaryIterator *iter, void *context)
 	}
 }
 
-// Procedure that triggers the weather data to update via Javascript
-static void update_weather(void) {
+// On dropping input message.
+static void in_dropped_handler(AppMessageResult reason, void *context) {
+	text_layer_set_text(status_layer, "BT in drop");
+	update_weather(); // Try to resend message.
+}
+
+// On out sending success.
+static void out_sent_handler(DictionaryIterator *iter, void *context) {
 	text_layer_set_text(status_layer, "Fetching...");
 	sun_rise_hour = 99;
 	sun_rise_min = 99;
 	sun_set_hour = 99;
 	sun_set_min = 99;
 	auto_daymode = 99;
+	prev_daytime = 99;
+}
 
+// On out sending failure.
+static void out_failed_handler(DictionaryIterator *iter, AppMessageResult reason, void *context) {
+	text_layer_set_text(status_layer, "BT out err");
+	update_weather(); // Try to resend message.
+}
+
+// Procedure that triggers the weather data to update via Javascript
+static void update_weather(void) {
+	if (!bluetooth_connection_service_peek()) return;
 	Tuplet value = TupletInteger(WEATHER_CITY_KEY, 42);
 
 	DictionaryIterator *iter;
@@ -302,8 +315,7 @@ static void update_weather(void) {
 
 // Handle clock change events
 static void tick_handler(struct tm *tick_time, TimeUnits units_changed) {
-	if ((units_changed & MINUTE_UNIT) == MINUTE_UNIT && tick_time->tm_min != prev_min) {
-		prev_min = tick_time->tm_min;
+	if ((units_changed & MINUTE_UNIT) == MINUTE_UNIT) {
 		clock_copy_time_string(current_time, sizeof(current_time));
 		text_layer_set_text(clock_layer, current_time);
 #ifdef DEBUG
@@ -313,8 +325,7 @@ static void tick_handler(struct tm *tick_time, TimeUnits units_changed) {
 			update_sun_layer(tick_time); // Update sun layer every 20min.
 		}
 	}
-	if ((units_changed & HOUR_UNIT) == HOUR_UNIT && tick_time->tm_hour != prev_hour) {
-		prev_hour = tick_time->tm_hour;
+	if ((units_changed & HOUR_UNIT) == HOUR_UNIT) {
 #ifdef DEBUG
 		APP_LOG(APP_LOG_LEVEL_DEBUG, "Hour changed");
 #endif
@@ -331,8 +342,7 @@ static void tick_handler(struct tm *tick_time, TimeUnits units_changed) {
 		}
 		update_weather(); // Update the weather every 1 hour
 	}
-	if ((units_changed & DAY_UNIT) == DAY_UNIT && tick_time->tm_yday != prev_day) {
-		prev_day = tick_time->tm_yday;
+	if ((units_changed & DAY_UNIT) == DAY_UNIT) {
 #ifdef DEBUG
 		APP_LOG(APP_LOG_LEVEL_DEBUG, "Day changed");
 #endif
@@ -461,22 +471,6 @@ static void cal_layer_draw(Layer *layer, GContext *ctx) {
 	// Invert current date colors to highlight it
 	int curr_day = (t->tm_wday + 7 - startday) % 7;
 	layer_set_frame(inverter_layer_get_layer(curr_date_layer), GRect((curr_day * 20) + curr_day, 23, 19, 11));
-}
-
-static void up_click_handler(ClickRecognizerRef recognizer, void *context)
-{
-
-}
-
-static void down_click_handler(ClickRecognizerRef recognizer, void *context)
-{
-
-}
-
-static void click_config_provider(void *context)
-{
-	window_single_click_subscribe(BUTTON_ID_UP, up_click_handler);
-	window_single_click_subscribe(BUTTON_ID_DOWN, down_click_handler);
 }
 
 static void window_load(Window *window) {
@@ -613,13 +607,15 @@ static void init(void) {
 		.unload = window_unload
 	});
 
-	window_set_click_config_provider(window, click_config_provider);
 	tick_timer_service_subscribe(MINUTE_UNIT, (TickHandler)tick_handler);
 	bluetooth_connection_service_subscribe(handle_bt_update);
 	battery_state_service_subscribe(handle_batt_update);
 
 	//Register AppMessage events
 	app_message_register_inbox_received(in_received_handler);
+	app_message_register_inbox_dropped(in_dropped_handler);
+	app_message_register_outbox_sent(out_sent_handler);
+	app_message_register_outbox_failed(out_failed_handler);
 	app_message_open(app_message_inbox_size_maximum(), app_message_outbox_size_maximum());    //Largest possible input and output buffer sizes
 
 	window_stack_push(window, true);
