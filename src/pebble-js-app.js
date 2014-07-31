@@ -274,7 +274,7 @@ function fetchWeather(latitude, longitude) {
 				console.log("Error");
 				Pebble.sendAppMessage({
 					"status": "Err: " + err,
-					"city": "N/A",
+					"city": "N/A"
 				});
 			});
 
@@ -282,14 +282,14 @@ function fetchWeather(latitude, longitude) {
 			// WOEID not found
 			Pebble.sendAppMessage({
 				"status": "Loc. N/A",
-				"city": "N/A",
+				"city": "N/A"
 			});
 		}
 	}, function (err) {
 		console.log("Error");
 		Pebble.sendAppMessage({
 			"status": "Err: " + err,
-			"city": "N/A",
+			"city": "N/A"
 		});
 	});
 }
@@ -308,13 +308,13 @@ function locationError(err) {
 	});
 }
 
-var locationOptions = { "timeout": 30000, "maximumAge": 600000 };
+var locationOptions = { "timeout": 15000, "maximumAge": 600000 };
 
 Pebble.addEventListener("ready",
 function (e) {
 	console.log("JS Ready");
 	// Trigger location and weather fetch on load
-	navigator.geolocation.getCurrentPosition(locationSuccess, locationError, locationOptions);
+	// navigator.geolocation.getCurrentPosition(locationSuccess, locationError, locationOptions);
 });
 
 Pebble.addEventListener("appmessage",

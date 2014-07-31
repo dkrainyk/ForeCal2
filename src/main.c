@@ -45,7 +45,7 @@ static char *weekdays[7] = { "Su", "Mo", "Tu", "We", "Th", "Fr", "Sa" };
 static char current_time[] = "00:00";
 static char current_date[] = "Sun Jan 01";
 
-static char status[14] = "Starting...";
+static char status[50] = "Starting...";
 static char city[50] = "";
 static char curr_temp[10] = "";
 static char sun_rise_set[6] = "";
@@ -62,6 +62,7 @@ static int sun_set_min = 99;
 static int auto_daymode = 99;
 static int prev_daytime = 99;
 static bool is_fetching = false;
+static bool is_loaded = false;
 
 static const uint32_t const vibe_segments[] = { 100, 200, 100 };
 static VibePattern vibe_pattern = {
@@ -278,6 +279,7 @@ static void in_received_handler(DictionaryIterator *iter, void *context) {
 // On dropping input message.
 static void in_dropped_handler(AppMessageResult reason, void *context) {
 	text_layer_set_text(status_layer, "BT in drop");
+	is_fetching = false;
 	update_weather(); // Try to resend message.
 }
 
@@ -301,7 +303,7 @@ static void out_failed_handler(DictionaryIterator *iter, AppMessageResult reason
 
 // Procedure that triggers the weather data to update via Javascript
 static void update_weather(void) {
-	if (!bluetooth_connection_service_peek()) return;
+	if (!bluetooth_connection_service_peek() || is_fetching || !is_loaded) return;
 	Tuplet value = TupletInteger(WEATHER_CITY_KEY, 42);
 
 	DictionaryIterator *iter;
@@ -328,6 +330,7 @@ static void tick_handler(struct tm *tick_time, TimeUnits units_changed) {
 			update_sun_layer(tick_time); // Update sun layer every hour on 16, 33, 50 min.
 		}
 		if (tick_time->tm_min >= 2 && is_fetching) { // Weather message stuck... resend.
+			is_fetching = false;
 			update_weather();
 		}
 	}
@@ -364,19 +367,13 @@ static void handle_bt_update(bool connected) {
 	if (connected) {
 #ifdef DEBUG
 		APP_LOG(APP_LOG_LEVEL_DEBUG, "BT Connected");
-#endif
-		//Register AppMessage events
-		app_message_register_inbox_received(in_received_handler);
-		app_message_register_inbox_dropped(in_dropped_handler);
-		app_message_register_outbox_sent(out_sent_handler);
-		app_message_register_outbox_failed(out_failed_handler);
-		app_message_open(app_message_inbox_size_maximum(), app_message_outbox_size_maximum());    //Largest possible input and output buffer sizes
-	}
-	else {
+#endif	
+		psleep(500);
+		update_weather();
+	} else {
 #ifdef DEBUG
 		APP_LOG(APP_LOG_LEVEL_DEBUG, "BT DISCONNECTED");
 #endif
-		app_message_deregister_callbacks();
 	}
 	layer_set_hidden(bitmap_layer_get_layer(bt_layer), !connected);
 	vibes_enqueue_custom_pattern(vibe_pattern);
@@ -390,20 +387,14 @@ static void handle_batt_update(BatteryChargeState batt_status) {
 
 	if (batt_status.is_charging) {
 		batt_icon = gbitmap_create_with_resource(RESOURCE_ID_IMAGE_BATT_CHARGE);
-	}
-	else {
-		if (batt_status.charge_percent > 75) {
-			batt_icon = gbitmap_create_with_resource(RESOURCE_ID_IMAGE_BATT_100);
-		}
-		else if (batt_status.charge_percent > 50) {
-			batt_icon = gbitmap_create_with_resource(RESOURCE_ID_IMAGE_BATT_75);
-		}
-		else if (batt_status.charge_percent > 25) {
-			batt_icon = gbitmap_create_with_resource(RESOURCE_ID_IMAGE_BATT_50);
-		}
-		else {
-			batt_icon = gbitmap_create_with_resource(RESOURCE_ID_IMAGE_BATT_25);
-		}
+	} else if (batt_status.charge_percent > 75) {
+		batt_icon = gbitmap_create_with_resource(RESOURCE_ID_IMAGE_BATT_100);
+	} else if (batt_status.charge_percent > 50) {
+		batt_icon = gbitmap_create_with_resource(RESOURCE_ID_IMAGE_BATT_75);
+	} else if (batt_status.charge_percent > 25) {
+		batt_icon = gbitmap_create_with_resource(RESOURCE_ID_IMAGE_BATT_50);
+	} else {
+		batt_icon = gbitmap_create_with_resource(RESOURCE_ID_IMAGE_BATT_25);
 	}
 
 	bitmap_layer_set_bitmap(batt_layer, batt_icon);
@@ -411,7 +402,6 @@ static void handle_batt_update(BatteryChargeState batt_status) {
 
 // Draw dates for a single week in the calendar
 static void cal_week_draw_dates(GContext *ctx, int start_date, int curr_mon_len, int prev_mon_len, GColor font_color, int ypos) {
-
 	int curr_date;
 	char curr_date_str[3];
 
@@ -569,6 +559,10 @@ static void window_load(Window *window) {
 
 	// Init time and date
 	tick_handler(t, MINUTE_UNIT | HOUR_UNIT | DAY_UNIT);
+		
+	psleep(500);
+	is_loaded = true;
+	update_weather();
 }
 
 static void window_unload(Window *window) {
@@ -623,9 +617,16 @@ static void init(void) {
 	});
 
 	tick_timer_service_subscribe(MINUTE_UNIT, (TickHandler)tick_handler);
-	bluetooth_connection_service_subscribe(handle_bt_update);
 	battery_state_service_subscribe(handle_batt_update);
-
+	bluetooth_connection_service_subscribe(handle_bt_update);
+	
+	//Register AppMessage events
+	app_message_register_inbox_received(in_received_handler);
+	app_message_register_inbox_dropped(in_dropped_handler);
+	app_message_register_outbox_sent(out_sent_handler);
+	app_message_register_outbox_failed(out_failed_handler);
+	app_message_open(app_message_inbox_size_maximum(), app_message_outbox_size_maximum());    //Largest possible input and output buffer sizes
+	
 	window_stack_push(window, true);
 }
 
@@ -639,6 +640,7 @@ static void deinit(void) {
 }
 
 int main(void) {
+	is_loaded = false;
 	init();
 	app_event_loop();
 	deinit();
