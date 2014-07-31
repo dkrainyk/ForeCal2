@@ -45,7 +45,7 @@ static char *weekdays[7] = { "Su", "Mo", "Tu", "We", "Th", "Fr", "Sa" };
 static char current_time[] = "00:00";
 static char current_date[] = "Sun Jan 01";
 
-static char status[14] = "Fetching...";
+static char status[14] = "Starting...";
 static char city[50] = "";
 static char curr_temp[10] = "";
 static char sun_rise_set[6] = "";
@@ -61,6 +61,7 @@ static int sun_set_hour = 99;
 static int sun_set_min = 99;
 static int auto_daymode = 99;
 static int prev_daytime = 99;
+static bool is_fetching = false;
 
 static const uint32_t const vibe_segments[] = { 100, 200, 100 };
 static VibePattern vibe_pattern = {
@@ -262,6 +263,7 @@ static void process_tuple(Tuple *t) {
 
 // On sucess input message.
 static void in_received_handler(DictionaryIterator *iter, void *context) {
+	is_fetching = false;
 	//Get data
 	Tuple *t = dict_read_first(iter);
 	while (t != NULL)
@@ -288,6 +290,7 @@ static void out_sent_handler(DictionaryIterator *iter, void *context) {
 	sun_set_min = 99;
 	auto_daymode = 99;
 	prev_daytime = 99;
+	is_fetching = true;
 }
 
 // On out sending failure.
@@ -321,8 +324,11 @@ static void tick_handler(struct tm *tick_time, TimeUnits units_changed) {
 #ifdef DEBUG
 		APP_LOG(APP_LOG_LEVEL_DEBUG, "Current time: %s", current_time);
 #endif
-		if (tick_time->tm_min % 20 == 0) {
-			update_sun_layer(tick_time); // Update sun layer every 20min.
+		if ((tick_time->tm_min + 1) % 17 == 0) {
+			update_sun_layer(tick_time); // Update sun layer every hour on 16, 33, 50 min.
+		}
+		if (tick_time->tm_min >= 2 && is_fetching) { // Weather message stuck... resend.
+			update_weather();
 		}
 	}
 	if ((units_changed & HOUR_UNIT) == HOUR_UNIT) {
@@ -355,14 +361,23 @@ static void tick_handler(struct tm *tick_time, TimeUnits units_changed) {
 
 // Handle Bluetooth status updates
 static void handle_bt_update(bool connected) {
-#ifdef DEBUG
 	if (connected) {
+#ifdef DEBUG
 		APP_LOG(APP_LOG_LEVEL_DEBUG, "BT Connected");
+#endif
+		//Register AppMessage events
+		app_message_register_inbox_received(in_received_handler);
+		app_message_register_inbox_dropped(in_dropped_handler);
+		app_message_register_outbox_sent(out_sent_handler);
+		app_message_register_outbox_failed(out_failed_handler);
+		app_message_open(app_message_inbox_size_maximum(), app_message_outbox_size_maximum());    //Largest possible input and output buffer sizes
 	}
 	else {
+#ifdef DEBUG
 		APP_LOG(APP_LOG_LEVEL_DEBUG, "BT DISCONNECTED");
-	}
 #endif
+		app_message_deregister_callbacks();
+	}
 	layer_set_hidden(bitmap_layer_get_layer(bt_layer), !connected);
 	vibes_enqueue_custom_pattern(vibe_pattern);
 }
@@ -610,13 +625,6 @@ static void init(void) {
 	tick_timer_service_subscribe(MINUTE_UNIT, (TickHandler)tick_handler);
 	bluetooth_connection_service_subscribe(handle_bt_update);
 	battery_state_service_subscribe(handle_batt_update);
-
-	//Register AppMessage events
-	app_message_register_inbox_received(in_received_handler);
-	app_message_register_inbox_dropped(in_dropped_handler);
-	app_message_register_outbox_sent(out_sent_handler);
-	app_message_register_outbox_failed(out_failed_handler);
-	app_message_open(app_message_inbox_size_maximum(), app_message_outbox_size_maximum());    //Largest possible input and output buffer sizes
 
 	window_stack_push(window, true);
 }
