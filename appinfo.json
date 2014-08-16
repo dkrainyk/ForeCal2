@@ -1,20 +1,18 @@
 {
     "appKeys": {
-        "auto_daymode": 14,
-        "city": 9,
+        "city": 8,
         "condition": 7,
         "curr_temp": 1,
-        "daymode": 8,
         "forecast_day": 3,
         "high_temp": 4,
         "icon": 6,
         "low_temp": 5,
         "status": 0,
-        "sun_rise_hour": 10,
-        "sun_rise_min": 11,
+        "sun_rise_hour": 9,
+        "sun_rise_min": 10,
         "sun_rise_set": 2,
-        "sun_set_hour": 12,
-        "sun_set_min": 13
+        "sun_set_hour": 11,
+        "sun_set_min": 12
     },
     "capabilities": [
         "location"

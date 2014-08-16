@@ -54,12 +54,10 @@ static char high_temp[10] = "";
 static char low_temp[10] = "";
 static int icon = 0;
 static char condition[50] = "";
-static int daymode = 0;
 static int sun_rise_hour = 99;
 static int sun_rise_min = 99;
 static int sun_set_hour = 99;
 static int sun_set_min = 99;
-static int auto_daymode = 99;
 static int prev_daytime = 99;
 static bool is_fetching = false;
 static bool is_loaded = false;
@@ -80,13 +78,11 @@ enum WeatherKey {
 	WEATHER_LOW_TEMP_KEY = 5,
 	WEATHER_ICON_KEY = 6,
 	WEATHER_CONDITION_KEY = 7,
-	WEATHER_DAYMODE_KEY = 8,
-	WEATHER_CITY_KEY = 9,
-	WEATHER_SUN_RISE_HOUR_KEY = 10,
-	WEATHER_SUN_RISE_MIN_KEY = 11,
-	WEATHER_SUN_SET_HOUR_KEY = 12,
-	WEATHER_SUN_SET_MIN_KEY = 13,
-	WEATHER_AUTO_DAYMODE_KEY = 14
+	WEATHER_CITY_KEY = 8,
+	WEATHER_SUN_RISE_HOUR_KEY = 9,
+	WEATHER_SUN_RISE_MIN_KEY = 10,
+	WEATHER_SUN_SET_HOUR_KEY = 11,
+	WEATHER_SUN_SET_MIN_KEY = 12
 };
 
 // Weather icon resources defined in order to match Javascript icon values
@@ -124,7 +120,7 @@ static TextLayer* init_text_layer(Layer *parent, GRect location, GColor colour, 
 }
 
 static void update_sun_layer(struct tm *t) {
-	if (sun_rise_hour != 99 && sun_rise_min != 99 && sun_set_hour != 99 && sun_set_min != 99 && auto_daymode != 99) {
+	if (sun_rise_hour != 99 && sun_rise_min != 99 && sun_set_hour != 99 && sun_set_min != 99) {
 
 		if (t == NULL) {
 			// Get current time
@@ -163,15 +159,13 @@ static void update_sun_layer(struct tm *t) {
 				prev_daytime = 1;
 			}
 
-			if (auto_daymode == 1)
-				layer_set_hidden(inverter_layer_get_layer(daymode_layer), !daytime);
-
+			layer_set_hidden(inverter_layer_get_layer(daymode_layer), !daytime);
 
 			text_layer_set_text(sun_rise_set_layer, sun_rise_set);
 			layer_set_hidden(bitmap_layer_get_layer(sun_layer), false);
 		}
 	}
-	else if (sun_rise_hour == 99 && sun_rise_min == 99 && sun_set_hour == 99 && sun_set_min == 99 && auto_daymode == 99 && prev_daytime == 99) {
+	else if (sun_rise_hour == 99 && sun_rise_min == 99 && sun_set_hour == 99 && sun_set_min == 99) {
 		text_layer_set_text(sun_rise_set_layer, "");
 		layer_set_hidden(bitmap_layer_get_layer(sun_layer), true);
 	}
@@ -229,35 +223,7 @@ static void process_tuple(Tuple *t) {
 		strncpy(condition, t->value->cstring, sizeof(condition));
 		text_layer_set_text(condition_layer, condition);
 		break;
-	case WEATHER_DAYMODE_KEY:
-		daymode = value;
-		layer_set_hidden(inverter_layer_get_layer(daymode_layer), (daymode == 0));
-		// 'Daymode' is defined as the time being between Sunrise and Sunset so it
-		// can be also used to determine the correct Sunrise/Sunset icon to display
-		if (daymode == 0)
-			bitmap_layer_set_bitmap(sun_layer, sunrise_bitmap);
-		else
-			bitmap_layer_set_bitmap(sun_layer, sunset_bitmap);
-		break;
-	case WEATHER_SUN_RISE_HOUR_KEY:
-		sun_rise_hour = value;
-		update_sun_layer(NULL);
-		break;
-	case WEATHER_SUN_RISE_MIN_KEY:
-		sun_rise_min = value;
-		update_sun_layer(NULL);
-		break;
-	case WEATHER_SUN_SET_HOUR_KEY:
-		sun_set_hour = value;
-		update_sun_layer(NULL);
-		break;
-	case WEATHER_SUN_SET_MIN_KEY:
-		sun_set_min = value;
-		update_sun_layer(NULL);
-		break;
-	case WEATHER_AUTO_DAYMODE_KEY:
-		auto_daymode = value;
-		update_sun_layer(NULL);
+	default:
 		break;
 	}
 }
@@ -266,38 +232,54 @@ static void process_tuple(Tuple *t) {
 static void in_received_handler(DictionaryIterator *iter, void *context) {
 	is_fetching = false;
 	//Get data
-	Tuple *t = dict_read_first(iter);
-	while (t != NULL)
+	Tuple *tuple = dict_read_first(iter);
+	while (tuple)
 	{
-		process_tuple(t);
+		process_tuple(tuple);
 
 		//Get next
-		t = dict_read_next(iter);
+		tuple = dict_read_next(iter);
 	}
+	
+	// Get Sunset and Sunrise at once.
+	tuple = dict_find(iter, WEATHER_SUN_RISE_HOUR_KEY);
+	if(!tuple) return;
+	int rise_hour = tuple->value->int32;
+	tuple = dict_find(iter, WEATHER_SUN_RISE_MIN_KEY);
+	if(!tuple) return;
+	int rise_min = tuple->value->int32;
+	tuple = dict_find(iter, WEATHER_SUN_SET_HOUR_KEY);
+	if(!tuple) return;
+	int set_hour = tuple->value->int32;
+	tuple = dict_find(iter, WEATHER_SUN_SET_MIN_KEY);
+	if(!tuple) return;
+	int set_min = tuple->value->int32;
+	sun_rise_hour = rise_hour;
+	sun_rise_min = rise_min;
+	sun_set_hour = set_hour;
+	sun_set_min = set_min;
+	prev_daytime = 99;
+	update_sun_layer(NULL);
 }
 
 // On dropping input message.
 static void in_dropped_handler(AppMessageResult reason, void *context) {
 	text_layer_set_text(status_layer, "BT in drop");
 	is_fetching = false;
+	psleep(500);
 	update_weather(); // Try to resend message.
 }
 
 // On out sending success.
 static void out_sent_handler(DictionaryIterator *iter, void *context) {
 	text_layer_set_text(status_layer, "Fetching...");
-	sun_rise_hour = 99;
-	sun_rise_min = 99;
-	sun_set_hour = 99;
-	sun_set_min = 99;
-	auto_daymode = 99;
-	prev_daytime = 99;
 	is_fetching = true;
 }
 
 // On out sending failure.
 static void out_failed_handler(DictionaryIterator *iter, AppMessageResult reason, void *context) {
 	text_layer_set_text(status_layer, "BT out err");
+	psleep(500);
 	update_weather(); // Try to resend message.
 }
 
@@ -329,7 +311,9 @@ static void tick_handler(struct tm *tick_time, TimeUnits units_changed) {
 		if ((tick_time->tm_min + 1) % 17 == 0) {
 			update_sun_layer(tick_time); // Update sun layer every hour on 16, 33, 50 min.
 		}
-		if (tick_time->tm_min >= 2 && is_fetching) { // Weather message stuck... resend.
+		if (tick_time->tm_min >= 3 && is_fetching) { // Weather update stuck... resend.
+			snprintf(status, sizeof(status), "Stuck:%s", current_time);
+			text_layer_set_text(status_layer, status );
 			is_fetching = false;
 			update_weather();
 		}
@@ -368,7 +352,7 @@ static void handle_bt_update(bool connected) {
 #ifdef DEBUG
 		APP_LOG(APP_LOG_LEVEL_DEBUG, "BT Connected");
 #endif	
-		psleep(500);
+		psleep(1000);
 		update_weather();
 	} else {
 #ifdef DEBUG
@@ -560,7 +544,7 @@ static void window_load(Window *window) {
 	// Init time and date
 	tick_handler(t, MINUTE_UNIT | HOUR_UNIT | DAY_UNIT);
 		
-	psleep(500);
+	psleep(1000);
 	is_loaded = true;
 	update_weather();
 }

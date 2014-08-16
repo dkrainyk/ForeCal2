@@ -159,7 +159,7 @@ function fetchWeather(latitude, longitude) {
 				// Successfully retrieved weather data
 				var curr_temp, curr_temp_str, sunrise, sunrise_str, sunset, sunset_str;
 				var curr_time, forecast_day, forecast_date, high, low, icon, condition;
-				var daymode, sun_rise_set;
+				var sun_rise_set;
 
 				curr_time = new Date();
 
@@ -171,7 +171,7 @@ function fetchWeather(latitude, longitude) {
 				else
 					curr_temp = getXmlAttrVal(weatherResponse, 'yweather:condition', 'temp') + '\u00B0' + unit;
 
-				sun_rise_set = ''; daymode = 0;
+				sun_rise_set = '';
 
 				// Get Sunrise and Sunset times, which also dictate if Daymode is on or not
 				sunrise_str = getXmlAttrVal(weatherResponse, 'yweather:astronomy', 'sunrise');
@@ -180,16 +180,6 @@ function fetchWeather(latitude, longitude) {
 				if (sunrise_str !== '' && sunset_str !== '') {
 					sunrise = parseTime(sunrise_str);
 					sunset = parseTime(sunset_str);
-
-					if (!isNaN(sunrise) && !isNaN(sunset)) {
-						if (curr_time >= sunset || curr_time < sunrise) {
-							// Nighttime
-							daymode = 0;
-						} else {
-							// Daytime
-							daymode = 1;
-						}
-					}
 				}
 
 				if (curr_time.getHours() >= 18) {
@@ -244,7 +234,7 @@ function fetchWeather(latitude, longitude) {
 
 				console.log('Current Temp: ' + curr_temp);
 				console.log('Sunrise: ' + sunrise.getHours() + ':' + sunrise.getMinutes());
-				console.log('Sunrise: ' + sunset.getHours() + ':' + sunset.getMinutes());
+				console.log('Sunset: ' + sunset.getHours() + ':' + sunset.getMinutes());
 				console.log('Forecast Day: ' + forecast_day);
 				console.log('Forecast Date: ' + forecast_date);
 				console.log('Low: ' + low);
@@ -260,14 +250,12 @@ function fetchWeather(latitude, longitude) {
 					"high_temp": high,
 					"low_temp": low,
 					"icon": icon,
-					"condition": condition,
-					"daymode": daymode,
-					"city": city,
+					"condition": condition.slice(0, 50),
+					"city": city.slice(0, 50),
 					"sun_rise_hour": sunrise.getHours(),
 					"sun_rise_min": sunrise.getMinutes(),
 					"sun_set_hour": sunset.getHours(),
-					"sun_set_min": sunset.getMinutes(),
-					"auto_daymode": 1
+					"sun_set_min": sunset.getMinutes()
 				});
 
 			}, function(err) {
