@@ -1,4 +1,8 @@
+#include "pebble.h"
+
 static TextLayer* init_text_layer(Layer *parent, GRect location, GColor colour, GColor background, const char *res_id, GTextAlignment alignment, GTextOverflowMode overflow);
+
+static void set_fetching(bool value);
 
 static void update_sun_layer(struct tm *t);
 

@@ -119,6 +119,14 @@ static TextLayer* init_text_layer(Layer *parent, GRect location, GColor colour, 
 	return layer;
 }
 
+static void set_fetching(bool value) {
+	is_fetching = value;
+	if (is_fetching == true)
+		text_layer_set_text(status_layer, "Fetching...");
+	else
+		text_layer_set_text(status_layer, "");
+}
+
 static void update_sun_layer(struct tm *t) {
 	if (sun_rise_hour != 99 && sun_rise_min != 99 && sun_set_hour != 99 && sun_set_min != 99) {
 
@@ -230,7 +238,7 @@ static void process_tuple(Tuple *t) {
 
 // On sucess input message.
 static void in_received_handler(DictionaryIterator *iter, void *context) {
-	is_fetching = false;
+	set_fetching(false);
 	//Get data
 	Tuple *tuple = dict_read_first(iter);
 	while (tuple)
@@ -264,29 +272,30 @@ static void in_received_handler(DictionaryIterator *iter, void *context) {
 
 // On dropping input message.
 static void in_dropped_handler(AppMessageResult reason, void *context) {
+	set_fetching(false);
 	text_layer_set_text(status_layer, "BT in drop");
-	is_fetching = false;
-	psleep(500);
+	psleep(1000);
 	update_weather(); // Try to resend message.
 }
 
 // On out sending success.
 static void out_sent_handler(DictionaryIterator *iter, void *context) {
-	text_layer_set_text(status_layer, "Fetching...");
-	is_fetching = true;
+	set_fetching(true);
 }
 
 // On out sending failure.
 static void out_failed_handler(DictionaryIterator *iter, AppMessageResult reason, void *context) {
+	set_fetching(false);
 	text_layer_set_text(status_layer, "BT out err");
-	psleep(500);
+	psleep(1000);
 	update_weather(); // Try to resend message.
 }
 
 // Procedure that triggers the weather data to update via Javascript
-static void update_weather(void) {
+static void update_weather() {
 	if (!bluetooth_connection_service_peek() || is_fetching || !is_loaded) return;
-	Tuplet value = TupletInteger(WEATHER_CITY_KEY, 42);
+		
+	Tuplet value = TupletInteger(WEATHER_CITY_KEY, 0);
 
 	DictionaryIterator *iter;
 	app_message_outbox_begin(&iter);
@@ -312,9 +321,9 @@ static void tick_handler(struct tm *tick_time, TimeUnits units_changed) {
 			update_sun_layer(tick_time); // Update sun layer every hour on 16, 33, 50 min.
 		}
 		if (tick_time->tm_min >= 3 && is_fetching) { // Weather update stuck... resend.
+			set_fetching(false);
 			snprintf(status, sizeof(status), "Stuck:%s", current_time);
 			text_layer_set_text(status_layer, status );
-			is_fetching = false;
 			update_weather();
 		}
 	}

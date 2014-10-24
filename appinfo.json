@@ -23,6 +23,12 @@
     "resources": {
         "media": [
             {
+                "file": "images/weatheri.png",
+                "menuIcon": true,
+                "name": "MAIN_LOGO",
+                "type": "png"
+            },
+            {
                 "file": "images/BT.png",
                 "name": "IMAGE_BT",
                 "type": "png"
@@ -162,7 +168,7 @@
     "shortName": "ForeCal2",
     "uuid": "0c4bf624-6ae6-462c-b2c9-927747f1fe9d",
     "versionCode": 1,
-    "versionLabel": "1.0",
+    "versionLabel": "2.0",
     "watchapp": {
         "watchface": true
     }
