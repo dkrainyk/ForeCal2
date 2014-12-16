@@ -150,6 +150,7 @@ function fetchLocation(latitude, longitude, onSuccess) {
 					"status": "Loc. N/A",
 					"city": "N/A"
 				};
+				Pebble.sendAppMessage(pebbleMessage);
 			}
 		}
 	}, function (err) {
@@ -161,6 +162,7 @@ function fetchLocation(latitude, longitude, onSuccess) {
 				"status": "Err: " + err,
 				"city": "N/A"
 			};
+			Pebble.sendAppMessage(pebbleMessage);
 		}
 	});
 }
@@ -272,8 +274,7 @@ function fetchWeather(latitude, longitude) {
 			console.log('Condition: ' + condition);
 			console.log('Icon: ' + icon);
 
-				// Send the data to the Pebble
-			//Pebble.sendAppMessage({
+			// Send the data to the Pebble
 			pebbleMessage = {
 				"status": status,
 				"curr_temp": curr_temp,
@@ -288,12 +289,14 @@ function fetchWeather(latitude, longitude) {
 				"sun_set_hour": sunset.getHours(),
 				"sun_set_min": sunset.getMinutes()
 			};
+			Pebble.sendAppMessage(pebbleMessage);
 		}, function(err) {
 			console.log("Error");
 			pebbleMessage = {
 				"status": "Err: " + err,
 				"city": city.slice(0, 50)
 			};
+			Pebble.sendAppMessage(pebbleMessage);
 		});
 	});
 }
@@ -320,6 +323,7 @@ function locationError(err) {
 			"status": "GPS N/A",
 			"city": "N/A"
 		};
+		Pebble.sendAppMessage(pebbleMessage);
 	}
 }
 
@@ -335,9 +339,10 @@ function (e) {
 Pebble.addEventListener("appmessage",
 function (e) {
 	console.log("Pebble App Message!");
+	if (pebbleMessage !== null)
+		Pebble.sendAppMessage(pebbleMessage);
 	// Trigger location and weather fetch on command from Pebble
 	navigator.geolocation.getCurrentPosition(locationSuccess, locationError, locationOptions);
-	Pebble.sendAppMessage(pebbleMessage);
 });
 
 Pebble.addEventListener("webviewclosed",
